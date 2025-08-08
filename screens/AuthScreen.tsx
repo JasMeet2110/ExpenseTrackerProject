@@ -25,7 +25,6 @@ export default function AuthScreen() {
 
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email,
-          monthlySalary: 0,
         });
 
         navigation.replace('Home');

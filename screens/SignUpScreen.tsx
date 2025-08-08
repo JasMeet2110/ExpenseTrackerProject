@@ -25,7 +25,6 @@ export default function SignUpScreen() {
       //create empty Firestore doc for this user
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
-        monthlySalary: 0,
       });
 
       //used to catch any errors
