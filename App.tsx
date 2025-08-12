@@ -5,6 +5,7 @@ import { auth } from "./firebase/firebaseConfig";
 import { NavigationContainer } from "@react-navigation/native";
 import AuthStack from "./navigation/AuthStack";
 import RootNavigator from "./navigation/RootNavigator";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import SignUpScreen from "./screens/SignUpScreen";
 import SignInScreen from "./screens/SignInScreen";
@@ -26,8 +27,10 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      {user ? <RootNavigator /> : <AuthStack />}
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        {user ? <RootNavigator /> : <AuthStack />}
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }
