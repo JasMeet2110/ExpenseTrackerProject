@@ -16,6 +16,7 @@ import Notifications from "../screens/Notifications";
 import TransactionHistory from "../screens/TransactionHistory";
 import HomeScreen from "../screens/HomeScreen";
 import UserProfile from "../screens/UserProfile";
+import AboutUsScreen from "../screens/AboutUsScreen";
 
 const Tab = createBottomTabNavigator();
 const { width } = Dimensions.get("window");
@@ -41,8 +42,10 @@ export default function Tabs() {
               iconName = focused ? "home" : "home-outline";
             } else if (route.name === "Notifications") {
               iconName = focused ? "notifications" : "notifications-outline";
-            } else if (route.name === "TransactionHistory") {
-              iconName = focused ? "list" : "list-outline";
+            } else if (route.name === "AboutUs") {
+              iconName = focused
+                ? "information-circle"
+                : "information-circle-outline";
             } else if (route.name === "UserProfile") {
               iconName = focused ? "person" : "person-outline";
             }
@@ -60,7 +63,7 @@ export default function Tabs() {
           }}
         />
         <Tab.Screen name="Notifications" component={Notifications} />
-        <Tab.Screen name="TransactionHistory" component={TransactionHistory} />
+        <Tab.Screen name="AboutUs" component={AboutUsScreen} />
         <Tab.Screen name="UserProfile" component={UserProfile} />
       </Tab.Navigator>
       <TouchableOpacity

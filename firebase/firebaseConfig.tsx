@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { enableNetwork } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCO1yKXz9rN2mOjjjk_cGvmmqqNAunKOPM",
@@ -15,3 +16,5 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+enableNetwork(db).catch(console.error);

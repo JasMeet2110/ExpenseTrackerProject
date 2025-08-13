@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { signOut, onAuthStateChanged } from "firebase/auth";
+import { signOut, onAuthStateChanged, getAuth } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
@@ -16,6 +16,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AuthStack";
 
 export default function HomeScreen() {
+  const auth = getAuth();
+  console.log(auth.currentUser);
   const [loading, setLoading] = useState(true);
   const [income, setIncome] = useState("0");
   const [isEditingIncome, setIsEditingIncome] = useState(false);

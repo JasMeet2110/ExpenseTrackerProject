@@ -9,6 +9,9 @@ import {
   Modal,
 } from "react-native";
 
+import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
+
 import type { StackNavigationProp } from "@react-navigation/stack";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,7 +26,8 @@ export default function NewTransactionScreen({ navigation }: any) {
   const [isIncome, setIsIncome] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
 
-  const saveTransaction = () => {
+  const saveTransaction = async () => {
+    console.log("Saving transaction:");
     if (!title.trim()) {
       alert("Please enter a title for the transaction.");
       return;
@@ -44,10 +48,24 @@ export default function NewTransactionScreen({ navigation }: any) {
       alert("Please enter a description for the transaction.");
       return;
     }
-    {
-      /* save to database */
+    try {
+      const dateTimestamp = Timestamp.fromDate(new Date(date));
+      await addDoc(collection(db, "transactions"), {
+        title,
+        amount: Number(amount),
+        date: dateTimestamp,
+        category,
+        description,
+        isIncome,
+      });
+      alert("Transaction saved successfully!");
+      navigation.goBack();
+    } catch (error) {
+      alert(
+        "Error saving transaction: " +
+          (error instanceof Error ? error.message : String(error))
+      );
     }
-    navigation.goBack();
   };
 
   return (
