@@ -13,7 +13,6 @@ export default function SignInScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
 
-  //used for signing in
   const handleSignIn = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -28,7 +27,6 @@ export default function SignInScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Sign In</Text>
       
-      {/*used TextInput for email and password */}
       <TextInput
         placeholder="Email"
         style={styles.input}
@@ -50,7 +48,6 @@ export default function SignInScreen() {
   );
 }
 
-//styles
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
