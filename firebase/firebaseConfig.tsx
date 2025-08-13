@@ -1,6 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { Platform } from "react-native";
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth, initializeAuth } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCO1yKXz9rN2mOjjjk_cGvmmqqNAunKOPM",
@@ -11,7 +13,25 @@ const firebaseConfig = {
   appId: "1:370331210488:web:b070338b9590a6f5d0610d",
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+let auth = getAuth(app);
+
+if (Platform.OS !== "web") {
+  try {
+    const rn = require("firebase/auth/react-native");
+    auth = initializeAuth(app, {
+      persistence: rn.getReactNativePersistence(AsyncStorage),
+    });
+  } catch (e) {
+    console.warn(
+      "[firebase] React Native persistence not available; using in-memory auth.",
+      (e as Error)?.message
+    );
+    auth = getAuth(app);
+  }
+}
+
+const db = getFirestore(app);
+
+export { app, auth, db };

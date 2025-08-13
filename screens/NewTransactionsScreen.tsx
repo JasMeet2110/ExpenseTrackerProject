@@ -3,176 +3,234 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   StyleSheet,
   TouchableOpacity,
-  Modal,
+  Platform,
+  InteractionManager,
 } from "react-native";
-
-import type { StackNavigationProp } from "@react-navigation/stack";
-import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Pressable, ScrollView } from "react-native-gesture-handler";
+import { ScrollView } from "react-native-gesture-handler";
+import { Picker } from "@react-native-picker/picker";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { db, auth } from "../firebase/firebaseConfig";
+
+const maskDate = (raw: string) => {
+  const d = raw.replace(/\D/g, "").slice(0, 8);
+  const y = d.slice(0, 4), m = d.slice(4, 6), day = d.slice(6, 8);
+  if (d.length <= 4) return y;
+  if (d.length <= 6) return `${y}-${m}`;
+  return `${y}-${m}-${day}`;
+};
+
+const isValidDateYYYYMMDD = (s: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+};
+
+const CATEGORIES = [
+  "Groceries",
+  "Transport",
+  "Rent",
+  "Dining",
+  "Shopping",
+  "Bills",
+  "Entertainment",
+  "Health",
+  "Other",
+];
 
 export default function NewTransactionScreen({ navigation }: any) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
+  const [dateError, setDateError] = useState<string | null>(null);
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [isIncome, setIsIncome] = useState(true);
-  const [showPicker, setShowPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const saveTransaction = () => {
+  const saveTransaction = async () => {
+    if (isSubmitting) return;
+
+    const user = auth.currentUser;
+    if (!user) {
+      alert("You must be signed in to add a transaction.");
+      return;
+    }
+
     if (!title.trim()) {
       alert("Please enter a title for the transaction.");
       return;
     }
-    if (!amount.trim() || isNaN(Number(amount))) {
-      alert("Please enter a valid amount.");
+
+    const rawAmt = Number(amount);
+    if (!amount.trim() || isNaN(rawAmt) || rawAmt <= 0) {
+      alert("Please enter a valid amount (greater than 0).");
       return;
     }
-    if (!date.trim()) {
-      alert("Please enter a date for the transaction.");
+
+    if (!date.trim() || !isValidDateYYYYMMDD(date)) {
+      alert("Please enter a valid date in YYYY-MM-DD format.");
       return;
     }
+
     if (!category.trim()) {
-      alert("Please enter a category for the transaction.");
+      alert("Please select a category for the transaction.");
       return;
     }
-    if (!description.trim()) {
-      alert("Please enter a description for the transaction.");
-      return;
+
+    setIsSubmitting(true);
+    try {
+      const signedAmount = isIncome ? Math.abs(rawAmt) : -Math.abs(rawAmt);
+      const txDate = new Date(`${date}T00:00:00`);
+      const dateTimestamp = Timestamp.fromDate(txDate);
+
+      await addDoc(collection(db, "transactions"), {
+        uid: user.uid, 
+        title: title.trim(),
+        amount: signedAmount,
+        date: dateTimestamp,
+        category,
+        description: description.trim(),
+        isIncome,
+        createdAt: Timestamp.now(),
+      });
+
+      InteractionManager.runAfterInteractions(() => {
+        const parent = navigation.getParent?.();
+        if (parent?.canGoBack?.()) parent.goBack();
+        else if (navigation.canGoBack?.()) navigation.goBack();
+        else parent?.navigate?.("Tabs") ?? navigation.navigate?.("Home");
+      });
+    } catch (error) {
+      alert(
+        "Error saving transaction: " +
+          (error instanceof Error ? error.message : String(error))
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    {
-      /* save to database */
-    }
-    navigation.goBack();
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        contentContainerStyle={styles.NewTransactionForm}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
-        <View style={styles.NewTransactionForm}>
+        <View style={{ backgroundColor: "white" }}>
           <Text style={styles.label}>Transaction Title</Text>
           <TextInput
             placeholder="Ex. Salary, Bonus, Groceries, etc."
             value={title}
             onChangeText={setTitle}
             style={styles.input}
-          ></TextInput>
+            autoCapitalize="sentences"
+          />
+
           <Text style={styles.label}>Amount</Text>
           <TextInput
             placeholder="Amount"
             value={amount}
             onChangeText={setAmount}
-            keyboardType="numeric"
+            keyboardType={Platform.select({ ios: "decimal-pad", android: "number-pad" })}
+            inputMode="decimal"
             style={styles.input}
-          ></TextInput>
-          <Text style={styles.label}>Date</Text>
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
           <TextInput
             placeholder="YYYY-MM-DD"
             value={date}
-            onChangeText={setDate}
-            style={styles.input}
-          ></TextInput>
+            onChangeText={(txt) => {
+              const masked = maskDate(txt);
+              setDate(masked);
+              if (dateError) setDateError(null);
+            }}
+            onBlur={() => {
+              if (date && !isValidDateYYYYMMDD(date)) {
+                setDateError("Enter a valid date as YYYY-MM-DD");
+              }
+            }}
+            style={[styles.input, dateError ? { borderColor: "#E11D48" } : null]}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            maxLength={10}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {dateError ? (
+            <Text style={styles.errorText}>{dateError}</Text>
+          ) : null}
 
-          {/* Category Picker */}
           <Text style={styles.label}>Category</Text>
-          <TouchableOpacity
-            style={styles.input}
-            onPress={() => setShowPicker(true)}
-          >
-            <Text style={{ color: category ? "black" : "gray" }}>
-              {category ? category : "Select a category"}
-            </Text>
-          </TouchableOpacity>
-          <Modal
-            visible={showPicker}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setShowPicker(false)}
-          >
-            <Pressable
-              style={styles.modalOverlay}
-              onPress={() => setShowPicker(false)}
+          <View style={styles.pickerWrap}>
+            <Picker
+              selectedValue={category}
+              onValueChange={(v) => setCategory(v)}
+              dropdownIconColor="#111827"
             >
-              <View style={styles.modalContent}>
-                <Picker
-                  selectedValue={category}
-                  onValueChange={(itemValue) => {
-                    setCategory(itemValue);
-                    setShowPicker(false);
-                  }}
-                  style={styles.picker}
-                  prompt="Select a category"
-                >
-                  <Picker.Item label="Food" value="Food" />
-                  <Picker.Item label="Salary" value="Salary" />
-                  <Picker.Item label="Utilities" value="Utilities" />
-                  <Picker.Item label="Transportation" value="Transportation" />
-                  <Picker.Item label="Other" value="Other" />
-                </Picker>
-              </View>
-            </Pressable>
-          </Modal>
+              <Picker.Item label="Select a category..." value="" />
+              {CATEGORIES.map((c) => (
+                <Picker.Item key={c} label={c} value={c} />
+              ))}
+            </Picker>
+          </View>
 
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>Description (optional)</Text>
           <TextInput
-            placeholder="Description"
+            placeholder="Add a note"
             value={description}
             onChangeText={setDescription}
-            style={[styles.input, styles.descriptionInput]}
-            multiline={true}
-            numberOfLines={4}
-            textAlignVertical="top"
-          ></TextInput>
-          <View style={styles.toggleContainer}>
+            style={[styles.input, { height: 90, textAlignVertical: "top" }]}
+            multiline
+          />
+
+          <Text style={styles.label}>Type</Text>
+          <View style={styles.toggleRow}>
             <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                isIncome && styles.toggleButtonActive,
-              ]}
+              style={[styles.toggleButton, isIncome && styles.toggleButtonActive]}
               onPress={() => setIsIncome(true)}
+              disabled={isIncome}
             >
-              <Text
-                style={[styles.toggleText, isIncome && styles.toggleTextActive]}
-              >
+              <Text style={[styles.toggleText, isIncome && styles.toggleTextActive]}>
                 Income
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                !isIncome && styles.toggleButtonActive,
-              ]}
+              style={[styles.toggleButton, !isIncome && styles.toggleButtonActive]}
               onPress={() => setIsIncome(false)}
+              disabled={!isIncome}
             >
-              <Text
-                style={[
-                  styles.toggleText,
-                  !isIncome && styles.toggleTextActive,
-                ]}
-              >
+              <Text style={[styles.toggleText, !isIncome && styles.toggleTextActive]}>
                 Expense
               </Text>
             </TouchableOpacity>
           </View>
+
           <View style={styles.buttonGroup}>
-            {/* Save Transaction Button */}
             <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
+              style={[styles.button, styles.saveButton, isSubmitting && { opacity: 0.6 }]}
               onPress={saveTransaction}
+              disabled={isSubmitting}
             >
-              <Text style={styles.buttonText}>Save Transaction</Text>
+              <Text style={styles.buttonText}>{isSubmitting ? "Saving..." : "Save"}</Text>
             </TouchableOpacity>
-            {/* Cancel Button */}
+
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                const parent = navigation.getParent?.();
+                if (parent?.canGoBack?.()) parent.goBack();
+                else if (navigation.canGoBack?.()) navigation.goBack();
+                else parent?.navigate?.("Tabs") ?? navigation.navigate?.("Home");
+              }}
             >
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
@@ -184,101 +242,53 @@ export default function NewTransactionScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  NewTransactionForm: {
-    flex: 1,
-    padding: 20,
-    paddingBottom: 100,
-    backgroundColor: "white",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    height: 300,
-    justifyContent: "center",
-  },
-  pickerContainer: {
-    borderColor: "blue",
-    borderWidth: 1,
-    borderRadius: 6,
-    marginBottom: 24,
-    height: 50,
-    justifyContent: "center",
-  },
-  picker: {
-    height: 250,
-    color: "black",
-    width: "100%",
-  },
-  label: {
-    fontWeight: 600,
-    marginBottom: 6,
-    fontSize: 16,
-  },
+  safeArea: { flex: 1, backgroundColor: "#F3F4F6" },
+  contentContainer: { padding: 16, paddingBottom: 32, gap: 10 },
+
+  label: { fontWeight: "700", color: "#111827", marginBottom: 6, marginTop: 6 },
   input: {
-    borderColor: "blue",
+    backgroundColor: "white",
     borderWidth: 1,
-    borderRadius: 6,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 16,
-    fontSize: 16,
+    paddingVertical: Platform.select({ ios: 14, android: 10 }),
+    color: "#111827",
+    marginBottom: 12,
   },
-  descriptionInput: {
-    height: 100, // increase height as needed
+
+  errorText: { color: "#E11D48", marginTop: -6, marginBottom: 10 },
+
+  pickerWrap: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    marginBottom: 12,
+    overflow: "hidden",
   },
-  toggleContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
+
+  toggleRow: { flexDirection: "row", gap: 10, marginTop: 4, marginBottom: 14 },
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
-    marginHorizontal: 5,
     borderWidth: 1,
-    borderColor: "blue",
-    borderRadius: 6,
+    borderColor: "#3B82F6",
+    borderRadius: 10,
     alignItems: "center",
   },
-  toggleButtonActive: {
-    backgroundColor: "#3B82F6",
-  },
-  toggleText: {
-    color: "blue",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  toggleTextActive: {
-    color: "white",
-  },
-  buttonGroup: {
-    marginTop: "auto",
-  },
+  toggleButtonActive: { backgroundColor: "#3B82F6" },
+  toggleText: { color: "#3B82F6", fontWeight: "700", fontSize: 16 },
+  toggleTextActive: { color: "white" },
+
+  buttonGroup: { marginTop: "auto" },
   button: {
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: "center",
     marginVertical: 6,
   },
-  saveButton: {
-    backgroundColor: "#4CAF50", // green
-  },
-  cancelButton: {
-    backgroundColor: "#E53935", // red
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  saveButton: { backgroundColor: "#16A34A" },
+  cancelButton: { backgroundColor: "#DC2626" },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "700" },
 });
